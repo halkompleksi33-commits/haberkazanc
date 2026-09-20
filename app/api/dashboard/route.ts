@@ -6,6 +6,10 @@ function fromBase64Url(value: string) {
   return new TextDecoder().decode(Uint8Array.from(atob(padded), (char) => char.charCodeAt(0)));
 }
 
+function newReferralCode() {
+  return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(12)))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
 function currentUser(request: NextRequest) {
   const token = request.cookies.get("hk_session")?.value;
   const [payload] = token?.split(".") ?? [];
@@ -34,7 +38,17 @@ export async function GET(request: NextRequest) {
   if (!user?.sub || !user.name || !user.email || !user.exp || user.exp < Date.now() || !env.DB) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await setup();
   await env.DB.prepare("INSERT INTO contributors (google_sub, name, email, balance) VALUES (?, ?, ?, 0) ON CONFLICT(google_sub) DO UPDATE SET name = excluded.name, email = excluded.email").bind(user.sub, user.name, user.email).run();
-  const contributor = await env.DB.prepare("SELECT balance, referral_code as referralCode FROM contributors WHERE google_sub = ?").bind(user.sub).first<{ balance: number; referralCode: string | null }>();
+  let contributor = await env.DB.prepare("SELECT balance, referral_code as referralCode FROM contributors WHERE google_sub = ?").bind(user.sub).first<{ balance: number; referralCode: string | null }>();
+  if (!contributor?.referralCode) {
+    let referralCode = newReferralCode();
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const existingCode = await env.DB.prepare("SELECT google_sub FROM contributors WHERE referral_code = ?").bind(referralCode).first();
+      if (!existingCode) break;
+      referralCode = newReferralCode();
+    }
+    await env.DB.prepare("UPDATE contributors SET referral_code = ? WHERE google_sub = ?").bind(referralCode, user.sub).run();
+    contributor = { balance: contributor?.balance ?? 0, referralCode };
+  }
   const videos = await env.DB.prepare("SELECT id, title, category, status, created_at as createdAt FROM videos WHERE google_sub = ? ORDER BY id DESC").bind(user.sub).all<{ id: number; title: string; category: string; status: string; createdAt: string }>();
   const approved = await env.DB.prepare("SELECT COUNT(*) as count FROM videos WHERE google_sub = ? AND status = 'Onaylandı'").bind(user.sub).first<{ count: number }>();
   const referralCount = await env.DB.prepare("SELECT COUNT(*) as count FROM referrals WHERE referrer_sub = ?").bind(user.sub).first<{ count: number }>();

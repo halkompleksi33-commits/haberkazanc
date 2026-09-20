@@ -14,12 +14,12 @@ export default function Home() {
   const [adminPassword, setAdminPassword] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
   useEffect(() => {
-    fetch("/api/auth/me").then((response) => response.ok ? response.json() : null).then((currentUser) => {
+    fetch("/api/auth/me", { credentials: "include", cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((currentUser) => {
       setUser(currentUser);
       if (currentUser) fetch("/api/dashboard").then((response) => response.ok ? response.json() : null).then(setDashboard).catch(() => setDashboard(null));
     }).catch(() => setUser(null));
   }, []);
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const response = await fetch("/api/videos", { method: "POST", body: new FormData(event.currentTarget) }); if (response.ok) { setSent(true); setShowForm(false); } else alert("Teyit kaydı için önce Google ile giriş yapmalısın."); };
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const response = await fetch("/api/videos", { method: "POST", credentials: "include", body: new FormData(event.currentTarget) }); if (response.ok) { setSent(true); setShowForm(false); } else if (response.status === 401) { alert("Oturumun sona ermiş. Lütfen Google ile yeniden giriş yap."); } else { alert("Teyit kaydı gönderilemedi. Lütfen tekrar dene."); } };
   return <main className="min-h-screen bg-[#f4f8fc] text-slate-950">
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-[#f4f8fc]/95 backdrop-blur"><div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-8">
       <button className="flex items-center gap-3 text-left" onClick={() => setView("dashboard")}><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#1457d9] text-lg font-black text-white">H</span><span><strong className="block text-base tracking-tight">HaberKazanç</strong><span className="block text-xs text-slate-500">İçeriğini gelire dönüştür</span></span></button>

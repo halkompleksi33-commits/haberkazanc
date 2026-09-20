@@ -16,17 +16,12 @@ async function sign(value: string, secret: string) {
 export async function GET(request: NextRequest) {
   const secret = process.env.GOOGLE_CLIENT_SECRET;
   if (!secret) return new NextResponse("Google giriş yapılandırması eksik.", { status: 503 });
-  const payload = btoa(JSON.stringify({ nonce: encode(crypto.getRandomValues(new Uint8Array(24))), exp: Date.now() + 10 * 60 * 1000 })).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  const ref = request.nextUrl.searchParams.get("ref")?.trim();
+  const referralCode = ref && /^[A-Za-z0-9_-]{8,64}$/.test(ref) ? ref : undefined;
+  const payload = btoa(JSON.stringify({ nonce: encode(crypto.getRandomValues(new Uint8Array(24))), exp: Date.now() + 10 * 60 * 1000, ref: referralCode })).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
   const state = `${payload}.${await sign(payload, secret)}`;
   const callback = new URL(callbackPath, request.url).toString();
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.search = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: callback,
-    response_type: "code",
-    scope: "openid email profile",
-    state,
-    prompt: "select_account",
-  }).toString();
+  url.search = new URLSearchParams({ client_id: clientId, redirect_uri: callback, response_type: "code", scope: "openid email profile", state, prompt: "select_account" }).toString();
   return NextResponse.redirect(url);
 }

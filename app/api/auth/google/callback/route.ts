@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 const clientId = "593474322689-nvov19qvp5ig22ojjhhjfbmgb8p2c96u.apps.googleusercontent.com";
 const parentSite = "https://mersinmanset.tr/hk/";
 
+function failed(reason: string) {
+  return NextResponse.redirect(new URL(`?login=failed&reason=${reason}`, parentSite));
+}
+
 function toBase64Url(value: string) {
   return btoa(unescape(encodeURIComponent(value))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
@@ -19,17 +23,20 @@ export async function GET(request: NextRequest) {
   const state = request.nextUrl.searchParams.get("state");
   const expectedState = request.cookies.get("hk_google_state")?.value;
   const secret = process.env.GOOGLE_CLIENT_SECRET;
-  if (error || !code || !state || state !== expectedState || !secret) return NextResponse.redirect(new URL("?login=failed", parentSite));
+  if (error) return failed("google_rejected");
+  if (!code) return failed("missing_code");
+  if (!state || state !== expectedState) return failed("state_mismatch");
+  if (!secret) return failed("missing_secret");
 
   const callback = new URL("/api/auth/google/callback", request.url).toString();
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: clientId, client_secret: secret, redirect_uri: callback, grant_type: "authorization_code" }) });
   const tokens = await tokenResponse.json() as { access_token?: string };
-  if (!tokens.access_token) return NextResponse.redirect(new URL("?login=failed", parentSite));
+  if (!tokens.access_token) return failed("token_exchange");
   const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${tokens.access_token}` } });
   const profile = await profileResponse.json() as { sub?: string; email?: string; name?: string; picture?: string };
-  if (!profile.sub || !profile.email || !profile.name) return NextResponse.redirect(new URL("?login=failed", parentSite));
+  if (!profile.sub || !profile.email || !profile.name) return failed("profile_fetch");
 
-  const payload = toBase64Url(JSON.stringify({ sub: profile.sub, email: profile.email, name: profile.name, picture: profile.picture, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }));
+  const payload = toBase64Url(JSON.stringify({ sub: profile.sub, email: profile.email, name: profile.name, picture: profile.picture, exp: Date.now() + 7 * 24 * 60 * 60 }));
   const response = NextResponse.redirect(parentSite);
   response.cookies.set("hk_google_state", "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
   response.cookies.set("hk_session", `${payload}.${await sign(payload, secret)}`, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 7 * 24 * 60 * 60 });

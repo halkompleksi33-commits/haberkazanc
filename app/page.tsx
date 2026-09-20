@@ -17,7 +17,7 @@ export default function Home() {
     fetch("/api/auth/me").then((response) => response.ok ? response.json() : null).then(setUser).catch(() => setUser(null));
   }, []);
   const startGoogleLogin = () => {
-    window.top?.location.assign("/api/auth/google");
+    window.top?.location.assign("https://haberkazanc.halkompleksi33.workers.dev/api/auth/google");
   };
   const submit = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); setSent(true); setShowForm(false); };
   return <main className="min-h-screen bg-[#f4f8fc] text-slate-950">

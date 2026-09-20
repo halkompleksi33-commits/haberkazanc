@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const clientId = "593474322689-nvov19qvp5ig22ojjhhjfbmgb8p2c96u.apps.googleusercontent.com";
-const parentSite = "https://mersinmanset.tr/hk/";
+const parentSite = "https://haberkazanc.halkompleksi33.workers.dev/";
 
 function failed(reason: string) {
   return NextResponse.redirect(new URL(`?login=failed&reason=${reason}`, parentSite));

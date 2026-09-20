@@ -11,6 +11,7 @@ export default function Home() {
   const [sent, setSent] = useState(false);
   const [user, setUser] = useState<{ name: string; picture?: string } | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [presence, setPresence] = useState({ online: 0, visitors: 0 });
   const [adminPassword, setAdminPassword] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
   useEffect(() => {
@@ -19,11 +20,20 @@ export default function Home() {
       if (currentUser) fetch("/api/dashboard").then((response) => response.ok ? response.json() : null).then(setDashboard).catch(() => setDashboard(null));
     }).catch(() => setUser(null));
   }, []);
+  useEffect(() => {
+    let visitorId = localStorage.getItem("hk_visitor_id");
+    if (!visitorId) { visitorId = crypto.randomUUID().replaceAll("-", ""); localStorage.setItem("hk_visitor_id", visitorId); }
+    const ping = () => fetch("/api/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ visitorId }) }).then((response) => response.ok ? response.json() : null).then((data) => { if (data) setPresence(data); }).catch(() => undefined);
+    ping();
+    const timer = window.setInterval(ping, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const response = await fetch("/api/videos", { method: "POST", credentials: "include", body: new FormData(event.currentTarget) }); if (response.ok) { setSent(true); setShowForm(false); } else if (response.status === 401) { alert("Oturumun sona ermiş. Lütfen Google ile yeniden giriş yap."); } else { alert("Teyit kaydı gönderilemedi. Lütfen tekrar dene."); } };
   return <main className="min-h-screen bg-[#f4f8fc] text-slate-950">
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-[#f4f8fc]/95 backdrop-blur"><div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-8">
       <button className="flex items-center gap-3 text-left" onClick={() => setView("dashboard")}><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#1457d9] text-lg font-black text-white">H</span><span><strong className="block text-base tracking-tight">HaberKazanç</strong><span className="block text-xs text-slate-500">İçeriğini gelire dönüştür</span></span></button>
       <nav className="hidden items-center gap-1 md:flex"><button onClick={() => setView("dashboard")} className={view === "dashboard" ? "nav active" : "nav"}>Panelim</button><button onClick={() => setShowForm(true)} className="nav">Haber yükle</button></nav>
+      <div className="hidden items-center gap-3 text-xs font-semibold text-slate-600 lg:flex"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" />{presence.online} online</span><span>👁 {presence.visitors} ziyaretçi</span></div>
       {user ? <button onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => setUser(null))} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold shadow-sm"><span className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-[#dbeafe] text-xs text-[#1457d9]">{user.picture ? <img src={user.picture} alt="" className="h-full w-full object-cover" /> : user.name.slice(0, 2).toUpperCase()}</span><span className="hidden sm:inline">{user.name}</span></button> : <a href="https://haberkazanc.halkompleksi33.workers.dev/api/auth/google" target="_top" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold shadow-sm"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#dbeafe] text-xs text-[#1457d9]">G</span><span className="hidden sm:inline">Google ile giriş</span></a>}
     </div></header>
     {isAdminPath ? <Admin password={adminPassword} setPassword={setAdminPassword} message={adminMessage} reset={async () => { const response = await fetch("/api/admin/reset", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: adminPassword }) }); setAdminMessage(response.ok ? "Yönetim verileri sıfırlandı." : "Şifre hatalı."); }} /> : <Dashboard openForm={() => setShowForm(true)} sent={sent} userName={user?.name} dashboard={dashboard} />}

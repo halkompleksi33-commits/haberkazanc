@@ -70,6 +70,6 @@ export async function GET(request: NextRequest) {
   await createContributor({ sub: profile.sub, email: profile.email, name: profile.name }, stateInfo.ref);
   const payload = toBase64Url(JSON.stringify({ sub: profile.sub, email: profile.email, name: profile.name, picture: profile.picture, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }));
   const response = NextResponse.redirect(parentSite);
-  response.cookies.set("hk_session", `${payload}.${await sign(payload, secret)}`, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 7 * 24 * 60 * 60 });
+  response.cookies.set("hk_session", `${payload}.${await sign(payload, secret)}`, { httpOnly: true, secure: true, sameSite: "none", partitioned: true, path: "/", maxAge: 7 * 24 * 60 * 60 });
   return response;
 }

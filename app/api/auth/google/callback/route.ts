@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
 
   const callback = new URL("/api/auth/google/callback", request.url).toString();
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: clientId, client_secret: secret, redirect_uri: callback, grant_type: "authorization_code" }) });
-  const tokens = await tokenResponse.json() as { access_token?: string };
-  if (!tokens.access_token) return failed("token_exchange");
+  const tokens = await tokenResponse.json() as { access_token?: string; error?: string };
+  if (!tokens.access_token) return failed(`token_${tokens.error || "exchange"}`);
   const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${tokens.access_token}` } });
   const profile = await profileResponse.json() as { sub?: string; email?: string; name?: string; picture?: string };
   if (!profile.sub || !profile.email || !profile.name) return failed("profile_fetch");

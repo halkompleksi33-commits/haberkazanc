@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-type DashboardData = { balance: number; approvedCount: number; videos: { id: number; title: string; category: string; status: string; createdAt: string }[] };\n\nexport default function Home() {
+type DashboardData = { balance: number; approvedCount: number; videos: { id: number; title: string; category: string; status: string; createdAt: string }[] };
+
+export default function Home() {
   const [view, setView] = useState<"dashboard" | "admin">("dashboard");
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
-  const [user, setUser] = useState<{ name: string; picture?: string } | null>(null);\n  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [user, setUser] = useState<{ name: string; picture?: string } | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   useEffect(() => {
     fetch("/api/auth/me").then((response) => response.ok ? response.json() : null).then((currentUser) => {
       setUser(currentUser);

@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 
+type ChatMessage = { id: number; senderRole: "user" | "admin"; body: string; createdAt: string };
 type DashboardData = { balance: number; approvedCount: number; videos: { id: number; title: string; category: string; status: string; createdAt: string }[]; referralCode: string | null; referralCount: number };
 
 export default function Home() {
   const [view, setView] = useState<"dashboard">("dashboard");
   const isAdminPath = typeof window !== "undefined" && window.location.pathname === "/admin";
   const [showForm, setShowForm] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatText, setChatText] = useState("");
   const [sent, setSent] = useState(false);
   const [user, setUser] = useState<{ name: string; picture?: string } | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -21,6 +25,10 @@ export default function Home() {
     }).catch(() => setUser(null));
   }, []);
   useEffect(() => {
+    if (!user) return;
+    fetch("/api/messages", { credentials: "include" }).then((response) => response.ok ? response.json() : null).then((data) => { if (data) setMessages(data.messages || []); }).catch(() => undefined);
+  }, [user]);
+  useEffect(() => {
     let visitorId = localStorage.getItem("hk_visitor_id");
     if (!visitorId) { visitorId = crypto.randomUUID().replaceAll("-", ""); localStorage.setItem("hk_visitor_id", visitorId); }
     const ping = () => fetch("/api/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ visitorId }) }).then((response) => response.ok ? response.json() : null).then((data) => { if (data) setPresence(data); }).catch(() => undefined);
@@ -28,15 +36,17 @@ export default function Home() {
     const timer = window.setInterval(ping, 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  const sendMessage = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const body = chatText.trim(); if (!body) return; const response = await fetch("/api/messages", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ body }) }); const data = await response.json().catch(() => null); if (response.ok && data?.message) { setMessages((items) => [...items, data.message]); setChatText(""); } else alert("Mesaj gönderilemedi. Lütfen yeniden giriş yapıp tekrar dene."); };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const response = await fetch("/api/videos", { method: "POST", credentials: "include", body: new FormData(event.currentTarget) }); if (response.ok) { setSent(true); setShowForm(false); } else if (response.status === 401) { alert("Oturumun sona ermiş. Lütfen Google ile yeniden giriş yap."); } else { alert("Teyit kaydı gönderilemedi. Lütfen tekrar dene."); } };
   return <main className="min-h-screen bg-[#f4f8fc] text-slate-950">
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-[#f4f8fc]/95 backdrop-blur"><div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-8">
       <button className="flex items-center gap-3 text-left" onClick={() => setView("dashboard")}><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#1457d9] text-lg font-black text-white">H</span><span><strong className="block text-base tracking-tight">HaberKazanç</strong><span className="block text-xs text-slate-500">İçeriğini gelire dönüştür</span></span></button>
-      <nav className="hidden items-center gap-1 md:flex"><button onClick={() => setView("dashboard")} className={view === "dashboard" ? "nav active" : "nav"}>Panelim</button><button onClick={() => setShowForm(true)} className="nav">Haber yükle</button></nav>
+      <nav className="hidden items-center gap-1 md:flex"><button onClick={() => setView("dashboard")} className={view === "dashboard" ? "nav active" : "nav"}>Panelim</button><button onClick={() => setShowForm(true)} className="nav">Haber yükle</button><button onClick={() => user ? setShowMessages(true) : alert("Mesajlaşmak için önce Google ile giriş yapmalısın.")} className="nav">Mesajlar</button></nav>
       <div className="hidden items-center gap-3 text-xs font-semibold text-slate-600 lg:flex"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" />{presence.online} online</span><span>👁 {presence.visitors} ziyaretçi</span></div>
       {user ? <button onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => setUser(null))} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold shadow-sm"><span className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-[#dbeafe] text-xs text-[#1457d9]">{user.picture ? <img src={user.picture} alt="" className="h-full w-full object-cover" /> : user.name.slice(0, 2).toUpperCase()}</span><span className="hidden sm:inline">{user.name}</span></button> : <a href="https://haberkazanc.halkompleksi33.workers.dev/api/auth/google" target="_top" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold shadow-sm"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#dbeafe] text-xs text-[#1457d9]">G</span><span className="hidden sm:inline">Google ile giriş</span></a>}
     </div></header>
     {isAdminPath ? <Admin password={adminPassword} setPassword={setAdminPassword} message={adminMessage} reset={async () => { const response = await fetch("/api/admin/reset", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: adminPassword }) }); setAdminMessage(response.ok ? "Yönetim verileri sıfırlandı." : "Şifre hatalı."); }} /> : <Dashboard openForm={() => setShowForm(true)} sent={sent} userName={user?.name} dashboard={dashboard} />}
+    {showMessages && <div className="modal-backdrop"><form className="modal" onSubmit={sendMessage}><button type="button" className="close" onClick={() => setShowMessages(false)}>×</button><p className="eyebrow">ÖZEL MESAJLAR</p><h2>Yönetimle mesajlaş</h2><p className="form-intro">Sorunu, önerini veya gönderinle ilgili notunu doğrudan yönetime yaz.</p><div className="max-h-72 space-y-3 overflow-y-auto rounded-xl bg-slate-50 p-3">{messages.length ? messages.map((item) => <div key={item.id} className={item.senderRole === "user" ? "ml-8 rounded-xl bg-[#1457d9] px-3 py-2 text-sm text-white" : "mr-8 rounded-xl bg-white px-3 py-2 text-sm text-slate-700 shadow-sm"}><strong className="mb-1 block text-xs opacity-70">{item.senderRole === "user" ? "Sen" : "Yönetim"}</strong>{item.body}</div>) : <p className="py-6 text-center text-sm text-slate-500">Henüz mesaj yok. İlk mesajı sen gönder.</p>}</div><label>Mesajın<textarea required value={chatText} onChange={(event) => setChatText(event.target.value)} rows={3} maxLength={1000} placeholder="Mesajını yaz..." /></label><button className="primary wide">Mesaj gönder</button></form></div>}
     {showForm && <div className="modal-backdrop"><form className="modal" onSubmit={submit}><button type="button" className="close" onClick={() => setShowForm(false)}>×</button><p className="eyebrow">VİDEO TEYİTİ</p><h2>Gönderini teyit için yükle</h2><p className="form-intro">Videonu önce WhatsApp üzerinden gönder, ardından gönderi ekran görüntünü buraya ekle.</p><a className="mb-5 flex items-center justify-between rounded-xl border border-[#c9ddd2] bg-[#f5fcf7] px-4 py-3 text-sm font-semibold text-[#17663e] transition hover:border-[#25d366] hover:bg-[#ecfbf0]" target="_blank" rel="noreferrer" href="https://wa.me/34631355567?text=HaberKazanç%20video%20gönderimim%20için%20teyit%20istiyorum."><span><span className="mr-2 inline-grid h-6 w-6 place-items-center rounded-full bg-[#25d366] text-xs text-white">↗</span>WhatsApp’tan video gönder</span><span className="text-xs font-medium text-slate-500">+34 631 35 55 67</span></a><label>Google hesabın<input name="accountName" readOnly value={user?.name || "Google ile giriş gerekli"} /></label><label>WhatsApp gönderi ekran görüntüsü<input required name="screenshot" type="file" accept="image/png,image/jpeg,image/webp" /><span className="hint">PNG, JPG veya WebP ekran görüntüsü</span></label><label>Kısa not (isteğe bağlı)<textarea name="note" rows={2} placeholder="Videonla ilgili kısa bilgi..." /></label><button className="primary wide">Teyiti yönetici onayına gönder</button></form></div>}
   </main>;
 }

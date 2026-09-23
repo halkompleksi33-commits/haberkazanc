@@ -61,7 +61,7 @@ export default function AdminPage() {
   async function deleteContributor(id: string, name: string) {
     if (!window.confirm(`${name} adlı kullanıcı ve bağlı video, mesaj, referans kayıtları silinsin mi?`)) return;
     const response = await fetch("/api/admin/contributors", { method: "DELETE", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
-    if (response.ok) { setContributors((items) => items.filter((item) => item.id !== id)); setThreads((items) => items.filter((item) => item.userId !== id)); setVideos((items) => items.filter((item) => item.id !== Number(id))); setMessage("Kullanıcı ve bağlı kayıtları silindi."); }
+    if (response.ok) { setContributors((items) => items.filter((item) => item.id !== id)); setThreads((items) => items.filter((item) => item.userId !== id)); setMessage("Kullanıcı ve bağlı kayıtları silindi."); }
     else setMessage("Kullanıcı silinemedi.");
   }
 

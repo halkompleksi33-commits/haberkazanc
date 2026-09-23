@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { env } from "cloudflare:workers";
+import { requireAdmin } from "../../auth/route";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = await requireAdmin(request);
+  if (denied) return denied;
   if (!env.DB) return NextResponse.json({ videos: [] });
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY AUTOINCREMENT, google_sub TEXT NOT NULL, title TEXT NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'İnceleniyor', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   const columns = await env.DB.prepare("PRAGMA table_info(videos)").all<{ name: string }>();

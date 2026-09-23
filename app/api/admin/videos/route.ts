@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { env } from "cloudflare:workers";
-import { requireAdmin } from "../../auth/route";
+import { requireAdmin } from "../auth/route";
 
 export async function GET(request: NextRequest) {
   const denied = await requireAdmin(request);

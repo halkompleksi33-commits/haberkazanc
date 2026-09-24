@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   if (!user?.sub || !user.name || !user.email || !user.exp || user.exp < Date.now() || !env.DB) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await setup();
   await env.DB.prepare("INSERT INTO contributors (google_sub, name, email, balance) VALUES (?, ?, ?, 0) ON CONFLICT(google_sub) DO UPDATE SET name = excluded.name, email = excluded.email").bind(user.sub, user.name, user.email).run();
-  let contributor = await env.DB.prepare("SELECT balance, referral_code as referralCode FROM contributors WHERE google_sub = ?").bind(user.sub).first<{ balance: number; referralCode: string | null }>();
+  let contributor = await env.DB.prepare("SELECT balance, referral_code as referralCode, referred_by as referredBy FROM contributors WHERE google_sub = ?").bind(user.sub).first<{ balance: number; referralCode: string | null; referredBy: string | null }>();
   if (!contributor?.referralCode) {
     let referralCode = newReferralCode();
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -47,10 +47,10 @@ export async function GET(request: NextRequest) {
       referralCode = newReferralCode();
     }
     await env.DB.prepare("UPDATE contributors SET referral_code = ? WHERE google_sub = ?").bind(referralCode, user.sub).run();
-    contributor = { balance: contributor?.balance ?? 0, referralCode };
+    contributor = { balance: contributor?.balance ?? 0, referralCode, referredBy: contributor?.referredBy ?? null };
   }
   const videos = await env.DB.prepare("SELECT id, title, category, status, created_at as createdAt FROM videos WHERE google_sub = ? ORDER BY id DESC").bind(user.sub).all<{ id: number; title: string; category: string; status: string; createdAt: string }>();
   const approved = await env.DB.prepare("SELECT COUNT(*) as count FROM videos WHERE google_sub = ? AND status = 'Onaylandı'").bind(user.sub).first<{ count: number }>();
   const referralCount = await env.DB.prepare("SELECT COUNT(*) as count FROM referrals WHERE referrer_sub = ?").bind(user.sub).first<{ count: number }>();
-  return NextResponse.json({ balance: contributor?.balance ?? 0, approvedCount: approved?.count ?? 0, videos: videos.results ?? [], referralCode: contributor?.referralCode ?? null, referralCount: referralCount?.count ?? 0 });
+  return NextResponse.json({ balance: contributor?.balance ?? 0, approvedCount: approved?.count ?? 0, videos: videos.results ?? [], referralCode: contributor?.referralCode ?? null, referredBy: contributor?.referredBy ?? null, referralCount: referralCount?.count ?? 0 });
 }

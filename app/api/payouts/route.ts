@@ -28,6 +28,6 @@ export async function POST(request: NextRequest) {
   const active = await env.DB.prepare("SELECT id FROM payout_requests WHERE google_sub = ? AND status = 'İnceleniyor'").bind(user.sub).first();
   if (active) return NextResponse.json({ error: "İncelenmekte olan bir ödeme talebin var." }, { status: 409 });
 
-  await env.DB.prepare("INSERT INTO payout_requests (google_sub, full_name, iban, amount) VALUES (?, ?, ?, ?)").bind(user.sub, name, normalizedIban, contributor.balance).run();
-  return NextResponse.json({ ok: true, amount: contributor.balance });
+  await env.DB.prepare("INSERT INTO payout_requests (google_sub, full_name, iban, amount) VALUES (?, ?, ?, ?)").bind(user.sub, name, normalizedIban, 250).run();
+  return NextResponse.json({ ok: true, amount: 250 });
 }

@@ -5,6 +5,23 @@ import { useEffect, useState } from "react";
 type ChatMessage = { id: number; senderRole: "user" | "admin"; body: string; createdAt: string };
 type DashboardData = { balance: number; approvedCount: number; videos: { id: number; title: string; category: string; status: string; createdAt: string }[]; referralCode: string | null; referredBy: string | null; referralCount: number };
 
+async function optimizeScreenshot(file: File) {
+  if (!file.type.startsWith("image/")) throw new Error("Lütfen ekran görüntüsü seç.");
+  const source = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => { const element = new Image(); element.onload = () => resolve(element); element.onerror = reject; element.src = source; });
+    const longestSide = 1280;
+    const scale = Math.min(1, longestSide / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.72));
+    if (!blob || blob.size > 700 * 1024) throw new Error("Ekran görüntüsü çok büyük. Lütfen daha küçük bir görsel seç.");
+    return new File([blob], "teyit-ekran-goruntusu.jpg", { type: "image/jpeg" });
+  } finally { URL.revokeObjectURL(source); }
+}
+
 export default function Home() {
   const [view, setView] = useState<"dashboard">("dashboard");
   const isAdminPath = typeof window !== "undefined" && window.location.pathname === "/admin";
@@ -44,7 +61,20 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, []);
   const sendMessage = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const body = chatText.trim(); if (!body) return; const response = await fetch("/api/messages", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ body }) }); const data = await response.json().catch(() => null); if (response.ok && data?.message) { setMessages((items) => [...items, data.message]); setChatText(""); } else alert("Mesaj gönderilemedi. Lütfen yeniden giriş yapıp tekrar dene."); };
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const response = await fetch("/api/videos", { method: "POST", credentials: "include", body: new FormData(event.currentTarget) }); if (response.ok) { setSent(true); setShowForm(false); } else if (response.status === 401) { alert("Oturumun sona ermiş. Lütfen Google ile yeniden giriş yap."); } else { alert("Teyit kaydı gönderilemedi. Lütfen tekrar dene."); } };
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      const form = new FormData(event.currentTarget);
+      const screenshot = form.get("screenshot");
+      if (!(screenshot instanceof File)) throw new Error("Lütfen ekran görüntüsü seç.");
+      form.set("screenshot", await optimizeScreenshot(screenshot));
+      const response = await fetch("/api/videos", { method: "POST", credentials: "include", body: form });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) { setSent(true); setShowForm(false); }
+      else if (response.status === 401) alert("Oturumun sona ermiş. Lütfen Google ile yeniden giriş yap.");
+      else alert(data.error || "Teyit kaydı gönderilemedi. Lütfen tekrar dene.");
+    } catch (error) { alert(error instanceof Error ? error.message : "Teyit kaydı gönderilemedi."); }
+  };
   const claimReferral = async () => {
     const code = manualReferralCode.trim();
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(code)) { alert("Geçerli bir referans kodu gir."); return; }
